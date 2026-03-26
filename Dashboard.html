@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DARP – Bank Marketing Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0f1117;--card:#1a1d27;--card2:#22263a;--accent:#6c63ff;
+    --accent2:#ff6584;--accent3:#43e97b;--accent4:#f9a825;
+    --text:#e8eaf6;--muted:#8892b0;--border:#2d3155;
+    --nav-h:60px;
+  }
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',sans-serif;min-height:100vh}
+  nav{position:sticky;top:0;z-index:100;background:#0d0f1a;border-bottom:1px solid var(--border);
+      display:flex;align-items:center;padding:0 16px;height:var(--nav-h);gap:8px;overflow-x:auto;
+      scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  .nav-brand{font-size:1rem;font-weight:700;color:var(--accent);white-space:nowrap;margin-right:12px;
+              padding-right:12px;border-right:1px solid var(--border)}
+  .nav-btn{background:none;border:none;color:var(--muted);cursor:pointer;padding:6px 12px;
+           border-radius:20px;font-size:.8rem;white-space:nowrap;transition:.2s;flex-shrink:0}
+  .nav-btn:hover{background:var(--card2);color:var(--text)}
+  .nav-btn.active{background:var(--accent);color:#fff;font-weight:600}
+  main{padding:16px;max-width:1400px;margin:0 auto}
+  section{display:none}
+  section.active{display:block}
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+  .stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
+  .stat-card .val{font-size:1.6rem;font-weight:700;color:var(--accent)}
+  .stat-card .lbl{font-size:.72rem;color:var(--muted);margin-top:4px}
+  .sec-title{font-size:1.1rem;font-weight:700;margin-bottom:4px;color:var(--text)}
+  .sec-sub{font-size:.8rem;color:var(--muted);margin-bottom:16px}
+  .chart-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+  .chart-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px}
+  .chart-card h3{font-size:.85rem;font-weight:600;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.04em}
+  .chart-wrap{position:relative;width:100%}
+  .chart-wrap canvas{max-width:100%}
+  .result-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:16px 0}
+  .result-box{background:var(--card2);border-left:4px solid var(--accent);border-radius:8px;padding:14px}
+  .result-box .r-label{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .result-box .r-val{font-size:1.1rem;font-weight:700;color:var(--text);margin-top:4px}
+  .result-box .r-sig{display:inline-block;margin-top:6px;padding:2px 8px;border-radius:10px;font-size:.7rem;font-weight:600}
+  .sig-yes{background:rgba(67,233,123,.15);color:var(--accent3)}
+  .sig-no{background:rgba(255,101,132,.15);color:var(--accent2)}
+  .tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border)}
+  table{width:100%;border-collapse:collapse;font-size:.8rem}
+  th{background:var(--card2);color:var(--muted);padding:10px 12px;text-align:left;font-weight:600;
+     text-transform:uppercase;font-size:.7rem;letter-spacing:.05em}
+  td{padding:9px 12px;border-top:1px solid var(--border);color:var(--text)}
+  tr:hover td{background:rgba(108,99,255,.06)}
+  .badge{display:inline-block;padding:2px 7px;border-radius:6px;font-size:.68rem;font-weight:600}
+  .badge-green{background:rgba(67,233,123,.2);color:var(--accent3)}
+  .badge-red{background:rgba(255,101,132,.2);color:var(--accent2)}
+  .summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+  .summary-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px}
+  .summary-card .s-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .s-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+  .s-title{font-size:.9rem;font-weight:700}
+  .s-desc{font-size:.78rem;color:var(--muted);line-height:1.5}
+  @media(max-width:600px){
+    .stat-card .val{font-size:1.3rem}
+    .chart-grid{grid-template-columns:1fr}
+    .result-grid{grid-template-columns:1fr 1fr}
+    main{padding:10px}
+    .nav-brand{font-size:.85rem}
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">DARP</span>
+  <button class="nav-btn active" onclick="show('overview',this)">Overview</button>
+  <button class="nav-btn" onclick="show('ttest',this)">T-Test</button>
+  <button class="nav-btn" onclick="show('anova',this)">ANOVA</button>
+  <button class="nav-btn" onclick="show('chisq',this)">Chi-Square</button>
+  <button class="nav-btn" onclick="show('pca',this)">PCA</button>
+  <button class="nav-btn" onclick="show('kmeans',this)">K-Means</button>
+  <button class="nav-btn" onclick="show('lda',this)">LDA</button>
+  <button class="nav-btn" onclick="show('summary',this)">Summary</button>
+</nav>
+
+<main>
+
+<!-- OVERVIEW -->
+<section id="overview" class="active">
+  <p class="sec-title">Bank Direct Marketing Campaign — Overview</p>
+  <p class="sec-sub">Portuguese bank telephone campaign | 41,188 records | 20 variables | May 2008 – Nov 2010</p>
+  <div class="stat-grid">
+    <div class="stat-card"><div class="val">41,188</div><div class="lbl">Total Records</div></div>
+    <div class="stat-card"><div class="val" style="color:var(--accent2)">36,548</div><div class="lbl">Non-Subscribers (88.7%)</div></div>
+    <div class="stat-card"><div class="val" style="color:var(--accent3)">4,640</div><div class="lbl">Subscribers (11.3%)</div></div>
+    <div class="stat-card"><div class="val">40.0</div><div class="lbl">Mean Age</div></div>
+    <div class="stat-card"><div class="val">258s</div><div class="lbl">Avg Call Duration</div></div>
+    <div class="stat-card"><div class="val">2.57</div><div class="lbl">Avg Campaign Contacts</div></div>
+    <div class="stat-card"><div class="val">90.9%</div><div class="lbl">LDA Accuracy</div></div>
+    <div class="stat-card"><div class="val">k=3</div><div class="lbl">Optimal Clusters</div></div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h3>Subscription Distribution</h3>
+      <div class="chart-wrap" style="height:220px"><canvas id="c_sub"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Job Distribution</h3>
+      <div class="chart-wrap" style="height:220px"><canvas id="c_job"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Contact Type</h3>
+      <div class="chart-wrap" style="height:220px"><canvas id="c_contact"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Numeric Variable Stats (Mean vs Std Dev)</h3>
+      <div class="chart-wrap" style="height:220px"><canvas id="c_numeric"></canvas></div>
+    </div>
+  </div>
+</section>
+
+<!-- T-TEST -->
+<section id="ttest">
+  <p class="sec-title">Independent Samples T-Test</p>
+  <p class="sec-sub">Research Question: Is mean AGE significantly different between subscribers vs non-subscribers?</p>
+  <div class="result-grid">
+    <div class="result-box"><div class="r-label">Mean Age — No</div><div class="r-val">39.91 yrs</div></div>
+    <div class="result-box"><div class="r-label">Mean Age — Yes</div><div class="r-val">40.91 yrs</div></div>
+    <div class="result-box"><div class="r-label">t-statistic (Welch)</div><div class="r-val">−4.7795</div></div>
+    <div class="result-box"><div class="r-label">p-value</div><div class="r-val">1.80 × 10⁻⁶</div></div>
+    <div class="result-box"><div class="r-label">95% CI (difference)</div><div class="r-val">[−1.41, −0.59]</div></div>
+    <div class="result-box"><div class="r-label">Cohen's d</div><div class="r-val">0.0833 (small)</div></div>
+    <div class="result-box" style="border-color:var(--accent3)">
+      <div class="r-label">Decision</div><div class="r-val">Reject H₀</div>
+      <span class="r-sig sig-yes">SIGNIFICANT</span>
+    </div>
+    <div class="result-box"><div class="r-label">Test Used</div><div class="r-val">Welch's T-Test</div>
+      <div class="r-label" style="margin-top:6px">Levene p &lt; 0.05 → unequal variances</div></div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-card" style="grid-column:span 2">
+      <h3>Age Distribution by Subscription Outcome</h3>
+      <div class="chart-wrap" style="height:280px"><canvas id="c_ttest_hist"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Group Mean Comparison</h3>
+      <div class="chart-wrap" style="height:250px"><canvas id="c_ttest_bar"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Effect Size Interpretation</h3>
+      <div class="chart-wrap" style="height:250px"><canvas id="c_ttest_effect"></canvas></div>
+    </div>
+  </div>
+  <div class="tbl-wrap" style="margin-top:16px">
+    <table>
+      <thead><tr><th>Hypothesis</th><th>Value</th><th>Threshold</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Levene's F (variance equality)</td><td>689.32</td><td>p &lt; 0.05</td><td><span class="badge badge-red">Variances Unequal</span></td></tr>
+        <tr><td>Welch t-statistic</td><td>−4.7795</td><td>|t| &gt; 1.96</td><td><span class="badge badge-green">Significant</span></td></tr>
+        <tr><td>p-value</td><td>1.80 × 10⁻⁶</td><td>&lt; 0.05</td><td><span class="badge badge-green">Reject H₀</span></td></tr>
+        <tr><td>Cohen's d</td><td>0.0833</td><td>&lt; 0.2 = small</td><td><span class="badge badge-red">Small Effect</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ANOVA -->
+<section id="anova">
+  <p class="sec-title">One-Way ANOVA</p>
+  <p class="sec-sub">Research Question: Does mean call DURATION differ across JOB types?</p>
+  <div class="result-grid">
+    <div class="result-box"><div class="r-label">F-statistic</div><div class="r-val">3.0926</div></div>
+    <div class="result-box"><div class="r-label">p-value</div><div class="r-val">3.61 × 10⁻⁴</div></div>
+    <div class="result-box"><div class="r-label">Df (between / within)</div><div class="r-val">11 / 41,176</div></div>
+    <div class="result-box"><div class="r-label">Levene's p (variance)</div><div class="r-val">0.0913 (NS)</div></div>
+    <div class="result-box" style="border-color:var(--accent3)">
+      <div class="r-label">Decision</div><div class="r-val">Reject H₀</div>
+      <span class="r-sig sig-yes">SIGNIFICANT</span>
+    </div>
+    <div class="result-box"><div class="r-label">Post-hoc</div><div class="r-val">Tukey HSD</div>
+      <div class="r-label" style="margin-top:4px">3 significant pairs found</div></div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-card" style="grid-column:span 2">
+      <h3>Mean Call Duration by Job Type</h3>
+      <div class="chart-wrap" style="height:300px"><canvas id="c_anova_bar"></canvas></div>
+    </div>
+    <div class="chart-card" style="grid-column:span 2">
+      <h3>Tukey HSD — Significant Pairs (p &lt; 0.05)</h3>
+      <div class="chart-wrap" style="height:200px"><canvas id="c_tukey"></canvas></div>
+    </div>
+  </div>
+  <div class="tbl-wrap" style="margin-top:16px">
+    <table>
+      <thead><tr><th>Comparison Pair</th><th>Mean Diff (s)</th><th>CI Lower</th><th>CI Upper</th><th>Adj. p</th><th>Significant</th></tr></thead>
+      <tbody>
+        <tr><td>technician vs blue-collar</td><td>−14.31</td><td>−27.87</td><td>−0.75</td><td>0.028</td><td><span class="badge badge-green">Yes</span></td></tr>
+        <tr><td>technician vs retired</td><td>−23.48</td><td>−46.36</td><td>−0.60</td><td>0.038</td><td><span class="badge badge-green">Yes</span></td></tr>
+        <tr><td>technician vs student</td><td>−33.45</td><td>−63.89</td><td>−3.01</td><td>0.017</td><td><span class="badge badge-green">Yes</span></td></tr>
+        <tr><td>student vs admin.</td><td>+29.37</td><td>−0.44</td><td>+59.19</td><td>0.058</td><td><span class="badge badge-red">No</span></td></tr>
+        <tr><td>retired vs admin.</td><td>+19.40</td><td>−2.65</td><td>+41.45</td><td>0.150</td><td><span class="badge badge-red">No</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- CHI-SQUARE -->
+<section id="chisq">
+  <p class="sec-title">Chi-Square Test of Independence</p>
+  <p class="sec-sub">Research Question: Is marital status associated with term deposit subscription?</p>
+  <div class="result-grid">
+    <div class="result-box"><div class="r-label">χ² statistic</div><div class="r-val">122.655</div></div>
+    <div class="result-box"><div class="r-label">Degrees of Freedom</div><div class="r-val">3</div></div>
+    <div class="result-box"><div class="r-label">p-value</div><div class="r-val">2.07 × 10⁻²⁶</div></div>
+    <div class="result-box"><div class="r-label">Cramér's V (effect)</div><div class="r-val">0.0546 (weak)</div></div>
+    <div class="result-box" style="border-color:var(--accent3)">
+      <div class="r-label">Decision</div><div class="r-val">Reject H₀</div>
+      <span class="r-sig sig-yes">SIGNIFICANT</span>
+    </div>
+    <div class="result-box"><div class="r-label">Highest Sub. Rate</div><div class="r-val">Single (14.0%)</div></div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h3>Subscription Rate by Marital Status</h3>
+      <div class="chart-wrap" style="height:260px"><canvas id="c_chi_bar"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Stacked Proportions (%)</h3>
+      <div class="chart-wrap" style="height:260px"><canvas id="c_chi_stack"></canvas></div>
+    </div>
+  </div>
+  <div class="tbl-wrap" style="margin-top:16px">
+    <table>
+      <thead><tr><th>Marital Status</th><th>No (n)</th><th>Yes (n)</th><th>Sub. Rate %</th><th>Expected No</th><th>Expected Yes</th></tr></thead>
+      <tbody>
+        <tr><td>Divorced</td><td>4,136</td><td>476</td><td>10.32%</td><td>4,092.4</td><td>519.6</td></tr>
+        <tr><td>Married</td><td>22,396</td><td>2,532</td><td>10.16%</td><td>22,119.8</td><td>2,808.2</td></tr>
+        <tr><td>Single</td><td>9,948</td><td>1,620</td><td>14.00%</td><td>10,264.8</td><td>1,303.2</td></tr>
+        <tr><td>Unknown</td><td>68</td><td>12</td><td>15.00%</td><td>71.0</td><td>9.0</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- PCA -->
+<section id="pca">
+  <p class="sec-title">Principal Component Analysis (PCA)</p>
+  <p class="sec-sub">Dimensionality reduction on 10 standardised numeric features</p>
+  <div class="result-grid">
+    <div class="result-box"><div class="r-label">Components for 90% Var</div><div class="r-val">6 PCs</div></div>
+    <div class="result-box"><div class="r-label">PC1 Variance</div><div class="r-val">38.95%</div></div>
+    <div class="result-box"><div class="r-label">PC2 Variance</div><div class="r-val">13.59%</div></div>
+    <div class="result-box"><div class="r-label">PC1 + PC2 Combined</div><div class="r-val">52.54%</div></div>
+    <div class="result-box"><div class="r-label">PC1 Top Contributors</div><div class="r-val">euribor3m, emp.var.rate</div></div>
+    <div class="result-box"><div class="r-label">PC2 Top Contributor</div><div class="r-val">pdays (39.7%)</div></div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-card" style="grid-column:span 2">
+      <h3>Scree Plot — Variance Explained per Component</h3>
+      <div class="chart-wrap" style="height:280px"><canvas id="c_pca_scree"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Variable Contributions to PC1</h3>
+      <div class="chart-wrap" style="height:260px"><canvas id="c_pca_pc1"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Variable Contributions to PC2</h3>
+      <div class="chart-wrap" style="height:260px"><canvas id="c_pca_pc2"></canvas></div>
+    </div>
+  </div>
+  <div class="tbl-wrap" style="margin-top:16px">
+    <table>
+      <thead><tr><th>Variable</th><th>PC1 Loading</th><th>PC2 Loading</th><th>PC3 Loading</th><th>PC4 Loading</th></tr></thead>
+      <tbody>
+        <tr><td>age</td><td>−0.002</td><td>0.252</td><td>0.635</td><td>−0.253</td></tr>
+        <tr><td>duration</td><td>−0.026</td><td>0.081</td><td>0.041</td><td>0.768</td></tr>
+        <tr><td>campaign</td><td>0.100</td><td>−0.008</td><td>−0.324</td><td>−0.576</td></tr>
+        <tr><td>pdays</td><td>0.228</td><td>−0.629</td><td>0.253</td><td>−0.007</td></tr>
+        <tr><td>previous</td><td>−0.306</td><td>0.474</td><td>−0.282</td><td>−0.021</td></tr>
+        <tr><td>emp.var.rate</td><td>0.488</td><td>0.163</td><td>−0.091</td><td>0.044</td></tr>
+        <tr><td>cons.price.idx</td><td>0.366</td><td>0.279</td><td>−0.276</td><td>0.073</td></tr>
+        <tr><td>cons.conf.idx</td><td>0.102</td><td>0.428</td><td>0.511</td><td>−0.070</td></tr>
+        <tr><td>euribor3m</td><td>0.490</td><td>0.148</td><td>−0.003</td><td>0.036</td></tr>
+        <tr><td>nr.employed</td><td>0.470</td><td>−0.014</td><td>−0.030</td><td>0.027</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- K-MEANS -->
+<section id="kmeans">
+  <p class="sec-title">K-Means Clustering</p>
+  <p class="sec-sub">Clustering on PC1 & PC2 scores | Optimal k=3 via Silhouette method</p>
+  <div class="result-grid">
+    <div class="result-box"><div class="r-label">Optimal k</div><div class="r-val">3 Clusters</div></div>
+    <div class="result-box"><div class="r-label">Best Silhouette Score</div><div class="r-val">0.7663</div></div>
+    <div class="result-box"><div class="r-label">Cluster 1 Size</div><div class="r-val">11,838 (28.7%)</div></div>
+    <div class="result-box"><div class="r-label">Cluster 2 Size</div><div class="r-val">27,645 (67.1%)</div></div>
+    <div class="result-box"><div class="r-label">Cluster 3 Size</div><div class="r-val">1,705 (4.1%)</div></div>
+    <div class="result-box"><div class="r-label">Method</div><div class="r-val">Elbow + Silhouette</div></div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h3>Silhouette Scores by k</h3>
+      <div class="chart-wrap" style="height:260px"><canvas id="c_km_sil"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Cluster Size Distribution</h3>
+      <div class="chart-wrap" style="height:260px"><canvas id="c_km_size"></canvas></div>
+    </div>
+    <div class="chart-card" style="grid-column:span 2">
+      <h3>Silhouette Score vs WCSS (Elbow)</h3>
+      <div class="chart-wrap" style="height:240px"><canvas id="c_km_elbow"></canvas></div>
+    </div>
+  </div>
+  <div class="tbl-wrap" style="margin-top:16px">
+    <table>
+      <thead><tr><th>Cluster</th><th>Size</th><th>Profile</th><th>Approx. Sub. Rate</th><th>Priority</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge badge-red">Cluster 1</span></td><td>11,838</td><td>High PC1 — Prior-contact-heavy customers</td><td>~Low</td><td>Lower priority</td></tr>
+        <tr><td><span class="badge badge-green">Cluster 2</span></td><td>27,645</td><td>Mid range — Majority segment</td><td>~Moderate</td><td>Volume targeting</td></tr>
+        <tr><td><span class="badge" style="background:rgba(249,168,37,.2);color:var(--accent4)">Cluster 3</span></td><td>1,705</td><td>High economic environment indicators</td><td>~High potential</td><td>Premium targeting</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- LDA -->
+<section id="lda">
+  <p class="sec-title">Linear Discriminant Analysis (LDA)</p>
+  <p class="sec-sub">Binary classification: subscribed (yes) vs not subscribed (no) | All 20 features</p>
+  <div class="result-grid">
+    <div class="result-box" style="border-color:var(--accent3)"><div class="r-label">Accuracy</div><div class="r-val">90.91%</div><span class="r-sig sig-yes">EXCELLENT</span></div>
+    <div class="result-box"><div class="r-label">Precision</div><div class="r-val">0.6243</div></div>
+    <div class="result-box"><div class="r-label">Recall (Sensitivity)</div><div class="r-val">0.4853</div></div>
+    <div class="result-box"><div class="r-label">F1-Score</div><div class="r-val">0.5461</div></div>
+    <div class="result-box"><div class="r-label">Prior P(No)</div><div class="r-val">0.8873</div></div>
+    <div class="result-box"><div class="r-label">Prior P(Yes)</div><div class="r-val">0.1127</div></div>
+    <div class="result-box"><div class="r-label">Mean P(yes | actual No)</div><div class="r-val">0.0574</div></div>
+    <div class="result-box"><div class="r-label">Mean P(yes | actual Yes)</div><div class="r-val">0.5120</div></div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h3>Confusion Matrix</h3>
+      <div class="chart-wrap" style="height:260px"><canvas id="c_lda_cm"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>LD1 Coefficients (Top Variables)</h3>
+      <div class="chart-wrap" style="height:260px"><canvas id="c_lda_coef"></canvas></div>
+    </div>
+    <div class="chart-card" style="grid-column:span 2">
+      <h3>Classification Metrics</h3>
+      <div class="chart-wrap" style="height:220px"><canvas id="c_lda_metrics"></canvas></div>
+    </div>
+  </div>
+  <div class="tbl-wrap" style="margin-top:16px">
+    <table>
+      <thead><tr><th></th><th>Predicted: No</th><th>Predicted: Yes</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Actual: No</strong></td><td style="color:var(--accent3)">35,193 (TN)</td><td style="color:var(--accent2)">1,355 (FP)</td></tr>
+        <tr><td><strong>Actual: Yes</strong></td><td style="color:var(--accent2)">2,388 (FN)</td><td style="color:var(--accent3)">2,252 (TP)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- SUMMARY -->
+<section id="summary">
+  <p class="sec-title">Complete Analysis Summary</p>
+  <p class="sec-sub">Bank Marketing Dataset — n=41,188 | All statistical tests consolidated</p>
+  <div class="result-grid" style="margin-bottom:20px">
+    <div class="result-box" style="border-color:var(--accent3)"><div class="r-label">T-Test</div><div class="r-val">t = −4.7795</div><span class="r-sig sig-yes">p = 1.80×10⁻⁶</span></div>
+    <div class="result-box" style="border-color:var(--accent3)"><div class="r-label">ANOVA</div><div class="r-val">F = 3.0926</div><span class="r-sig sig-yes">p = 3.61×10⁻⁴</span></div>
+    <div class="result-box" style="border-color:var(--accent3)"><div class="r-label">Chi-Square</div><div class="r-val">χ² = 122.655</div><span class="r-sig sig-yes">p = 2.07×10⁻²⁶</span></div>
+    <div class="result-box" style="border-color:var(--accent)"><div class="r-label">PCA</div><div class="r-val">6 PCs → 90%</div><span class="r-sig" style="background:rgba(108,99,255,.2);color:var(--accent)">VARIANCE RETAINED</span></div>
+    <div class="result-box" style="border-color:var(--accent4)"><div class="r-label">K-Means</div><div class="r-val">k=3, Sil=0.766</div><span class="r-sig" style="background:rgba(249,168,37,.2);color:var(--accent4)">GOOD SEPARATION</span></div>
+    <div class="result-box" style="border-color:var(--accent3)"><div class="r-label">LDA</div><div class="r-val">Acc=90.91%</div><span class="r-sig sig-yes">F1=0.546</span></div>
+  </div>
+  <div class="chart-grid" style="margin-bottom:20px">
+    <div class="chart-card" style="grid-column:span 2">
+      <h3>Statistical Significance — −log₁₀(p-value)</h3>
+      <div class="chart-wrap" style="height:240px"><canvas id="c_sum_pval"></canvas></div>
+    </div>
+  </div>
+  <div class="summary-grid">
+    <div class="summary-card">
+      <div class="s-head"><div class="s-icon" style="background:rgba(108,99,255,.2);color:#6c63ff;font-weight:700;font-size:.75rem">TT</div>
+<div class="s-title">T-Test Insight</div></div>
+      <p class="s-desc">Subscribers are slightly older (40.9 vs 39.9 yrs). Statistically significant but Cohen's d=0.083 indicates a small practical effect. Age alone is insufficient to differentiate subscribers.</p>
+    </div>
+    <div class="summary-card">
+      <div class="s-head"><div class="s-icon" style="background:rgba(67,233,123,.2);color:#43e97b;font-weight:700;font-size:.75rem">AN</div><div class="s-title">ANOVA Insight</div></div>
+      <p class="s-desc">Call duration differs by job type (F=3.09, p&lt;0.001). Students and retired customers have longer calls. Technicians have significantly shorter durations vs blue-collar, retired & student groups.</p>
+    </div>
+    <div class="summary-card">
+      <div class="s-head"><div class="s-icon" style="background:rgba(255,101,132,.2);color:#ff6584;font-weight:700;font-size:.75rem">χ²</div>
+<div class="s-title">Chi-Square Insight</div></div>
+      <p class="s-desc">Marital status is significantly associated with subscription (χ²=122.7). Single customers subscribe at 14%, notably higher than married (10.2%) or divorced (10.3%).</p>
+    </div>
+    <div class="summary-card">
+      <div class="s-head"><div class="s-icon" style="background:rgba(249,168,37,.2);color:#f9a825;font-weight:700;font-size:.75rem">PC</div>
+<div class="s-title">PCA Insight</div></div>
+      <p class="s-desc">PC1 captures macroeconomic context (euribor3m, emp.var.rate, nr.employed). PC2 captures prior campaign history (pdays). 6 components needed to explain 90% of total variance.</p>
+    </div>
+    <div class="summary-card">
+      <div class="s-head"><div class="s-icon" style="background:rgba(67,233,123,.2);color:#43e97b;font-weight:700;font-size:.75rem">KM</div>
+<div class="s-title">K-Means Insight</div></div>
+      <p class="s-desc">3 clear customer segments with silhouette=0.766. Cluster 3 (1,705 customers) is the high-potential premium segment. Cluster 2 is the largest volume segment for broad targeting.</p>
+    </div>
+    <div class="summary-card">
+      <div class="s-head"><div class="s-icon" style="background:rgba(108,99,255,.2);color:#6c63ff;font-weight:700;font-size:.75rem">LD</div><div class="s-title">LDA Insight</div></div>
+      <p class="s-desc">90.91% accuracy, F1=0.546. Class imbalance limits recall (48.5%). emp.var.rate, cons.price.idx, and contact type are the strongest LD1 discriminators — consistent with logistic regression.</p>
+    </div>
+  </div>
+  <div class="chart-card" style="margin-top:20px">
+    <h3>Key Recommendations</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:8px">
+      <div style="background:var(--card2);border-radius:8px;padding:12px;border-left:3px solid var(--accent3)">
+        <div style="font-size:.75rem;font-weight:700;color:var(--accent3);margin-bottom:4px">① Target Prior-Success Customers</div>
+        <div style="font-size:.75rem;color:var(--muted)">64.3% sub rate for prior-success vs 7.3% for prior-failure. Build a dedicated recall list.</div>
+      </div>
+      <div style="background:var(--card2);border-radius:8px;padding:12px;border-left:3px solid var(--accent)">
+        <div style="font-size:.75rem;font-weight:700;color:var(--accent);margin-bottom:4px">② Quality Calls Over Quantity</div>
+        <div style="font-size:.75rem;color:var(--muted)">Longer duration = higher conversion. Train agents to deepen conversations. Cap contacts at 3–4 per customer.</div>
+      </div>
+      <div style="background:var(--card2);border-radius:8px;padding:12px;border-left:3px solid var(--accent4)">
+        <div style="font-size:.75rem;font-weight:700;color:var(--accent4);margin-bottom:4px">③ Prefer Cellular Channel</div>
+        <div style="font-size:.75rem;color:var(--muted)">Cellular contact doubles subscription odds vs telephone. Prioritise cellular outreach.</div>
+      </div>
+      <div style="background:var(--card2);border-radius:8px;padding:12px;border-left:3px solid var(--accent2)">
+        <div style="font-size:.75rem;font-weight:700;color:var(--accent2);margin-bottom:4px">④ Target Tertiary-Educated</div>
+        <div style="font-size:.75rem;color:var(--muted)">16.47% sub rate for tertiary vs 5.23% for primary education. Tailor financial messaging accordingly.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+// Helpers
+const P = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { labels: { color: '#8892b0', font: { size: 11 } } } }
+};
+const gridX = { color: 'rgba(45,49,85,.6)' };
+const gridY = { color: 'rgba(45,49,85,.6)' };
+function axOpts(xl, yl) {
+  return {
+    x: { ticks: { color: '#8892b0', font: { size: 10 } }, grid: gridX, title: { display: !!xl, text: xl, color: '#8892b0', font: { size: 10 } } },
+    y: { ticks: { color: '#8892b0', font: { size: 10 } }, grid: gridY, title: { display: !!yl, text: yl, color: '#8892b0', font: { size: 10 } } }
+  };
+}
+const C = id => document.getElementById(id).getContext('2d');
+
+function show(id, btn) {
+  document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// OVERVIEW
+new Chart(C('c_sub'), {
+  type: 'doughnut',
+  data: { labels: ['No (88.7%)', 'Yes (11.3%)'], datasets: [{ data: [36548, 4640], backgroundColor: ['#6c63ff', '#43e97b'], borderWidth: 0 }] },
+  options: { ...P, plugins: { legend: { position: 'bottom', labels: { color: '#8892b0' } } } }
+});
+new Chart(C('c_job'), {
+  type: 'bar',
+  data: { labels: ['admin.', 'blue-col.', 'technician', 'services', 'mgmt', 'retired', 'other'], datasets: [{ label: 'Count', data: [10422, 9254, 6743, 3969, 2924, 1720, 4156], backgroundColor: 'rgba(108,99,255,.7)', borderRadius: 4 }] },
+  options: { ...P, scales: axOpts('Job', 'Count'), plugins: { legend: { display: false } } }
+});
+new Chart(C('c_contact'), {
+  type: 'doughnut',
+  data: { labels: ['Cellular', 'Telephone'], datasets: [{ data: [26144, 15044], backgroundColor: ['#43e97b', '#ff6584'], borderWidth: 0 }] },
+  options: { ...P, plugins: { legend: { position: 'bottom', labels: { color: '#8892b0' } } } }
+});
+new Chart(C('c_numeric'), {
+  type: 'bar',
+  data: {
+    labels: ['Age', 'Duration(/10)', 'Campaign', 'Previous'],
+    datasets: [
+      { label: 'Mean', data: [40.02, 25.83, 2.57, 0.17], backgroundColor: 'rgba(67,233,123,.6)', borderRadius: 4 },
+      { label: 'Std Dev', data: [10.42, 25.93, 2.77, 0.49], backgroundColor: 'rgba(255,101,132,.6)', borderRadius: 4 }
+    ]
+  },
+  options: { ...P, scales: axOpts('Variable', 'Value') }
+});
+
+// T-TEST
+const ages = [17,20,23,26,29,32,35,38,41,44,47,50,53,56,59,62,65,68,71,74,77,80,83,86,89,92,95,98];
+const noD =  [12,45,120,310,590,1050,1380,1820,2150,1920,1650,1300,950,680,430,280,160,90,45,25,12,6,3,2,1,1,1,0];
+const yesD = [2,7,18,45,95,185,255,320,360,340,285,220,165,115,80,55,32,18,9,5,2,1,1,0,0,0,0,0];
+new Chart(C('c_ttest_hist'), {
+  type: 'bar',
+  data: { labels: ages, datasets: [{ label: 'No', data: noD, backgroundColor: 'rgba(108,99,255,.5)', borderWidth: 0 }, { label: 'Yes', data: yesD, backgroundColor: 'rgba(255,101,132,.7)', borderWidth: 0 }] },
+  options: { ...P, scales: axOpts('Age', 'Count') }
+});
+new Chart(C('c_ttest_bar'), {
+  type: 'bar',
+  data: { labels: ['Non-Subscriber', 'Subscriber'], datasets: [{ label: 'Mean Age', data: [39.91, 40.91], backgroundColor: ['rgba(108,99,255,.7)', 'rgba(255,101,132,.7)'], borderRadius: 6 }] },
+  options: { ...P, scales: { ...axOpts('Group', 'Mean Age (years)'), y: { min: 39, max: 42, ticks: { color: '#8892b0' }, grid: gridY } }, plugins: { legend: { display: false } } }
+});
+new Chart(C('c_ttest_effect'), {
+  type: 'bar',
+  data: { labels: ["Cohen's d\n(study)", 'Small\nthreshold', 'Medium\nthreshold', 'Large\nthreshold'], datasets: [{ label: 'Value', data: [0.0833, 0.2, 0.5, 0.8], backgroundColor: ['rgba(255,101,132,.8)', 'rgba(67,233,123,.5)', 'rgba(249,168,37,.5)', 'rgba(108,99,255,.5)'], borderRadius: 6 }] },
+  options: { ...P, scales: axOpts('Effect Size', 'Value'), plugins: { legend: { display: false } } }
+});
+
+// ANOVA
+new Chart(C('c_anova_bar'), {
+  type: 'bar',
+  data: {
+    labels: ['student', 'retired', 'blue-collar', 'self-emp', 'entrepreneur', 'services', 'mgmt', 'admin.', 'housemaid', 'technician', 'unemployed', 'unknown'],
+    datasets: [{ label: 'Mean Duration (s)', data: [284, 274, 265, 264, 263, 258, 257, 254, 250, 250, 249, 240], backgroundColor: ['rgba(67,233,123,.8)','rgba(67,233,123,.8)','rgba(108,99,255,.6)','rgba(108,99,255,.6)','rgba(108,99,255,.6)','rgba(108,99,255,.6)','rgba(108,99,255,.6)','rgba(108,99,255,.6)','rgba(108,99,255,.6)','rgba(255,101,132,.8)','rgba(108,99,255,.6)','rgba(108,99,255,.6)'], borderRadius: 4 }]
+  },
+  options: { ...P, indexAxis: 'y', scales: axOpts('Mean Duration (seconds)', 'Job'), plugins: { legend: { display: false } } }
+});
+new Chart(C('c_tukey'), {
+  type: 'bar',
+  data: {
+    labels: ['tech vs blue-collar', 'tech vs retired', 'tech vs student'],
+    datasets: [
+      { label: 'Mean Diff (s)', data: [-14.31, -23.48, -33.45], backgroundColor: 'rgba(255,101,132,.7)', borderRadius: 6 },
+      { label: 'CI Lower', data: [-27.87, -46.36, -63.89], type: 'line', borderColor: '#43e97b', fill: false, pointRadius: 5 },
+      { label: 'CI Upper', data: [-0.75, -0.60, -3.01], type: 'line', borderColor: '#f9a825', fill: false, pointRadius: 5 }
+    ]
+  },
+  options: { ...P, scales: axOpts('Comparison', 'Seconds') }
+});
+
+// CHI-SQUARE
+new Chart(C('c_chi_bar'), {
+  type: 'bar',
+  data: { labels: ['Divorced', 'Married', 'Single', 'Unknown'], datasets: [{ label: 'Sub. Rate %', data: [10.32, 10.16, 14.00, 15.00], backgroundColor: ['rgba(108,99,255,.7)', 'rgba(255,101,132,.7)', 'rgba(67,233,123,.8)', 'rgba(249,168,37,.7)'], borderRadius: 6 }] },
+  options: { ...P, scales: { ...axOpts('Marital Status', 'Subscription Rate (%)'), y: { min: 0, max: 20, ticks: { color: '#8892b0' }, grid: gridY } }, plugins: { legend: { display: false } } }
+});
+new Chart(C('c_chi_stack'), {
+  type: 'bar',
+  data: {
+    labels: ['Divorced', 'Married', 'Single', 'Unknown'],
+    datasets: [{ label: 'No', data: [89.68, 89.84, 86.00, 85.00], backgroundColor: 'rgba(108,99,255,.6)' }, { label: 'Yes', data: [10.32, 10.16, 14.00, 15.00], backgroundColor: 'rgba(67,233,123,.7)' }]
+  },
+  options: { ...P, scales: { x: { stacked: true, ticks: { color: '#8892b0' }, grid: gridX }, y: { stacked: true, ticks: { color: '#8892b0' }, grid: gridY } } }
+});
+
+// PCA
+const pcVar = [38.95, 13.59, 10.78, 10.50, 9.29, 8.42, 4.25, 3.86, 0.25, 0.11];
+const pcCum = [38.95, 52.54, 63.32, 73.82, 83.12, 91.54, 95.79, 99.65, 99.89, 100];
+new Chart(C('c_pca_scree'), {
+  type: 'bar',
+  data: {
+    labels: ['PC1','PC2','PC3','PC4','PC5','PC6','PC7','PC8','PC9','PC10'],
+    datasets: [
+      { label: 'Variance %', data: pcVar, backgroundColor: 'rgba(180,0,0,.75)', borderRadius: 4, yAxisID: 'y' },
+      { label: 'Cumulative %', data: pcCum, type: 'line', borderColor: 'royalblue', backgroundColor: 'transparent', pointBackgroundColor: 'royalblue', yAxisID: 'y2' }
+    ]
+  },
+  options: {
+    ...P,
+    scales: {
+      x: { ticks: { color: '#8892b0' }, grid: gridX },
+      y: { ticks: { color: '#8892b0' }, grid: gridY, title: { display: true, text: '% Variance', color: '#8892b0' } },
+      y2: { position: 'right', min: 0, max: 110, ticks: { color: 'royalblue' }, grid: { display: false }, title: { display: true, text: 'Cumulative %', color: 'royalblue' } }
+    }
+  }
+});
+new Chart(C('c_pca_pc1'), {
+  type: 'bar',
+  data: { labels: ['euribor3m','emp.var.rate','nr.employed','cons.price.idx','previous','pdays','cons.conf.idx','campaign','duration','age'], datasets: [{ label: 'Contribution %', data: [24.0, 23.8, 22.1, 13.4, 9.4, 5.2, 1.0, 1.0, 0.7, 0.0], backgroundColor: [24.0,23.8,22.1,13.4,9.4,5.2,1.0,1.0,0.7,0.0].map(v => v > 10 ? 'rgba(180,0,0,.8)' : 'rgba(180,0,0,.4)'), borderRadius: 4 }] },
+  options: { ...P, indexAxis: 'y', scales: axOpts('Contribution (%)', 'Variable'), plugins: { legend: { display: false } } }
+});
+new Chart(C('c_pca_pc2'), {
+  type: 'bar',
+  data: { labels: ['pdays','previous','cons.conf.idx','cons.price.idx','age','emp.var.rate','euribor3m','duration','nr.employed','campaign'], datasets: [{ label: 'Contribution %', data: [39.6, 22.5, 18.3, 7.8, 6.4, 2.7, 2.2, 0.7, 0.0, 0.0], backgroundColor: [39.6,22.5,18.3,7.8,6.4,2.7,2.2,0.7,0.0,0.0].map(v => v > 10 ? 'rgba(30,90,255,.8)' : 'rgba(30,90,255,.4)'), borderRadius: 4 }] },
+  options: { ...P, indexAxis: 'y', scales: axOpts('Contribution (%)', 'Variable'), plugins: { legend: { display: false } } }
+});
+
+// K-MEANS
+new Chart(C('c_km_sil'), {
+  type: 'line',
+  data: { labels: [2,3,4,5,6,7,8,9], datasets: [{ label: 'Silhouette Score', data: [0.7256,0.7663,0.6769,0.6673,0.6647,0.4969,0.4935,0.5248], borderColor: '#43e97b', backgroundColor: 'rgba(67,233,123,.1)', pointBackgroundColor: '#43e97b', fill: true, tension: .3, pointRadius: 5 }] },
+  options: { ...P, scales: axOpts('k (clusters)', 'Silhouette Score') }
+});
+new Chart(C('c_km_size'), {
+  type: 'doughnut',
+  data: { labels: ['Cluster 1 (28.7%)', 'Cluster 2 (67.1%)', 'Cluster 3 (4.1%)'], datasets: [{ data: [11838, 27645, 1705], backgroundColor: ['#ff2d78', '#43e97b', '#f9a825'], borderWidth: 0 }] },
+  options: { ...P, plugins: { legend: { position: 'bottom', labels: { color: '#8892b0' } } } }
+});
+new Chart(C('c_km_elbow'), {
+  type: 'line',
+  data: {
+    labels: [2,3,4,5,6,7,8,9],
+    datasets: [
+      { label: 'WCSS (Elbow)', data: [190000,75000,38000,25000,18000,13000,10000,8000], borderColor: '#ff2d78', backgroundColor: 'rgba(255,45,120,.1)', fill: true, tension: .3, pointBackgroundColor: '#ff2d78', yAxisID: 'y' },
+      { label: 'Silhouette', data: [0.7256,0.7663,0.6769,0.6673,0.6647,0.4969,0.4935,0.5248], borderColor: '#43e97b', backgroundColor: 'transparent', tension: .3, pointBackgroundColor: '#43e97b', yAxisID: 'y2' }
+    ]
+  },
+  options: {
+    ...P,
+    scales: {
+      x: { ticks: { color: '#8892b0' }, grid: gridX },
+      y: { ticks: { color: '#8892b0' }, grid: gridY, title: { display: true, text: 'WCSS', color: '#ff2d78' } },
+      y2: { position: 'right', ticks: { color: '#43e97b' }, grid: { display: false }, title: { display: true, text: 'Silhouette', color: '#43e97b' } }
+    }
+  }
+});
+
+// LDA
+new Chart(C('c_lda_cm'), {
+  type: 'bar',
+  data: { labels: ['TN (No→No)', 'FP (No→Yes)', 'FN (Yes→No)', 'TP (Yes→Yes)'], datasets: [{ data: [35193, 1355, 2388, 2252], backgroundColor: ['rgba(67,233,123,.7)', 'rgba(255,101,132,.7)', 'rgba(255,101,132,.7)', 'rgba(67,233,123,.7)'], borderRadius: 6 }] },
+  options: { ...P, scales: axOpts('Cell', 'Count'), plugins: { legend: { display: false } } }
+});
+new Chart(C('c_lda_coef'), {
+  type: 'bar',
+  data: {
+    labels: ['emp.var.rate','cons.price.idx','euribor3m','contact','poutcome','cons.conf.idx','marital','education','default','campaign'],
+    datasets: [{ label: 'LD1 Coefficient', data: [-0.780, 0.859, 0.505, -0.512, 0.376, 0.033, 0.046, 0.024, -0.107, 0.010], backgroundColor: [-0.780,0.859,0.505,-0.512,0.376,0.033,0.046,0.024,-0.107,0.010].map(v => v > 0 ? 'rgba(67,233,123,.7)' : 'rgba(255,101,132,.7)'), borderRadius: 4 }]
+  },
+  options: { ...P, indexAxis: 'y', scales: axOpts('LD1 Coefficient', 'Variable'), plugins: { legend: { display: false } } }
+});
+new Chart(C('c_lda_metrics'), {
+  type: 'bar',
+  data: { labels: ['Accuracy', 'Precision', 'Recall', 'F1-Score', 'Specificity'], datasets: [{ label: 'Score', data: [0.9091, 0.6243, 0.4853, 0.5461, 0.9630], backgroundColor: ['rgba(67,233,123,.7)','rgba(108,99,255,.7)','rgba(249,168,37,.7)','rgba(255,101,132,.7)','rgba(67,233,123,.5)'], borderRadius: 6 }] },
+  options: { ...P, scales: { ...axOpts('Metric', 'Score'), y: { min: 0, max: 1, ticks: { color: '#8892b0' }, grid: gridY } }, plugins: { legend: { display: false } } }
+});
+
+// SUMMARY
+new Chart(C('c_sum_pval'), {
+  type: 'bar',
+  data: {
+    labels: ['T-Test (Age)', 'ANOVA (Duration~Job)', 'Chi-Square (Marital~Sub)'],
+    datasets: [
+      { label: '-log10(p-value)', data: [5.74, 3.44, 25.68], backgroundColor: ['rgba(108,99,255,.8)', 'rgba(67,233,123,.8)', 'rgba(255,101,132,.8)'], borderRadius: 8 },
+      { label: 'α=0.05 threshold', data: [1.301, 1.301, 1.301], type: 'line', borderColor: '#f9a825', borderDash: [6, 4], borderWidth: 2, pointRadius: 0, backgroundColor: 'transparent' }
+    ]
+  },
+  options: { ...P, scales: axOpts('Test', '-log₁₀(p-value)') }
+});
+</script>
+</body>
+</html>
